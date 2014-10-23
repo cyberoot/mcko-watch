@@ -87,7 +87,7 @@ class MrkoWrapper
 
     private function checkResponse($response)
     {
-        if ($response === false)
+        if ($response === false && $this->requestHandler->LastHttpCode() != 404)
         {
             throw new Exception($this->requestHandler->LastError());
         }
