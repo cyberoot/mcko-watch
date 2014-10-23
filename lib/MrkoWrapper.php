@@ -1,6 +1,6 @@
 <?php
 
-class MckoWrapper
+class MrkoWrapper
 {
     /**
      * @var null|RequestHandler
@@ -15,9 +15,15 @@ class MckoWrapper
     /**
      * @var string
      */
-    private $cabinetPath = '/new_mcko/index.php';
-
     private $authenticated = false;
+
+    private $loginPath = '/dnevnik/services/index.php';
+
+    private $journalPath = '/dnevnik/services/dnevnik.php';
+
+    private $mainPath = '/dnevnik/services/main.php';
+
+    private $pguReferer = 'https://pgu.mos.ru/ru/application/dogm/journal/';
 
     function __construct($baseUrl, RequestHandler $requestHandler)
     {
@@ -66,9 +72,9 @@ class MckoWrapper
 
     public function GetMarkbook()
     {
-        $response = $this->get($this->baseUrl . $this->cabinetPath, ['c' => 'dnevnik', 'd' => 'dnev']);
+        $response = $this->get($this->baseUrl . $this->journalPath, [ 'r' => 1 ]);
 
-        return ResultsExtractor::FromMarkbook($response);
+        return ResultsExtractor::FromMarkbook2014($response);
     }
 
     private function checkAuthorized($checkAuth = true)
@@ -89,7 +95,7 @@ class MckoWrapper
         return $response;
     }
 
-    public function Login($username, $password)
+    public function Login($username, $password, $token)
     {
         if ($this->authenticated)
         {
@@ -103,41 +109,39 @@ class MckoWrapper
             return $this->authenticated = true;
         }
 
-        $loginMatches  = null;
-        $passwdMatches = null;
-
-        // Detect login form fields
-        preg_match("/name=\"(login\d+)\"/", $response, $loginMatches);
-        preg_match("/name=\"(passwd\d+)\"/", $response, $passwdMatches);
-
-        if (count($loginMatches) < 2 || count($passwdMatches) < 2)
-        {
-            throw new Exception('Cannot detect login form');
-        }
-
-        $fieldNames = ['login' => $loginMatches[1], 'password' => $passwdMatches[1]];
-
         $result = $this->post(
-                    $this->baseUrl,
-                    [
-                        $fieldNames['login']    => $username,
-                        $fieldNames['password'] => $password,
-                    ],
-                    false
+            $this->baseUrl . $this->loginPath,
+            [
+                'login'    => $username,
+                'pass'     => $password,
+                'password' => $token,
+            ],
+            false,
+            $this->pguReferer
         );
 
-        return $this->authenticated = true;
+        $lastCode = $this->requestHandler->LastHttpCode();
+
+        $response = $this->isAuthenticated();
+
+        if ($response === true)
+        {
+            return $this->authenticated = true;
+        }
+
+        return $this->authenticated = false;
     }
 
     private function isAuthenticated()
     {
-        $response = $this->get($this->baseUrl, [], false);
-        if (preg_match("/\sid=\"name_uch\"/", $response) != 0)
+        $this->get($this->baseUrl . $this->journalPath, [], false);
+
+        if ($this->requestHandler->LastHttpCode() == 200)
         { // already logged in
             return true;
         }
 
-        return $response;
+        return false;
     }
 
     /**
@@ -148,11 +152,11 @@ class MckoWrapper
      *
      * @return string
      */
-    private function get($url, $params = [], $chekAuth = true)
+    private function get($url, $params = [], $chekAuth = true, $referer = null)
     {
         $this->checkAuthorized($chekAuth);
 
-        return $this->checkResponse($this->requestHandler->Get($url, $params));
+        return $this->checkResponse($this->requestHandler->Get($url, $params, $referer));
     }
 
     /**
@@ -162,16 +166,16 @@ class MckoWrapper
      *
      * @return string
      */
-    private function post($url, $params = [], $chekAuth = true)
+    private function post($url, $params = [], $chekAuth = true, $referer = null)
     {
         $this->checkAuthorized($chekAuth);
 
-        return $this->checkResponse($this->requestHandler->Post($url, $params));
+        return $this->checkResponse($this->requestHandler->Post($url, $params, $referer));
     }
 
     public function Logout()
     {
-        $this->get($this->baseUrl . $this->cabinetPath, ['submit_exit' => '1'], false);
+        $this->get($this->baseUrl . $this->mainPath, ['exit' => '1'], false, $this->baseUrl . $this->journalPath );
 
         $this->authenticated = false;
     }

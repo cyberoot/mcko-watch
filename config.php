@@ -1,9 +1,10 @@
 <?php
-// login / password @ new.mcko.ru
+// login / password @ mrko.mos.ru + token from pgu.mos.ru
 $username = '';
 $password = '';
+$token = '';
 
-$baseUrl    = 'https://new.mcko.ru';
+$baseUrl    = 'https://mrko.mos.ru';
 
 $email =
     [

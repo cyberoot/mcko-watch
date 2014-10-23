@@ -1,27 +1,14 @@
 <?php
-class ResultsExtractor {
 
-    /**
-     * @param string $doc
-     *
-     * @return domDocument
-     */
-    private static function prepareDoc($doc)
-    {
-        $dom = new domDocument;
-
-        @$dom->loadHTML($doc);
-        $dom->preserveWhiteSpace = false;
-
-        return $dom;
-    }
+class ResultsExtractor
+{
 
     public static function FromMarkbook($doc)
     {
-        $dom = self::prepareDoc((string) $doc);
+        $dom = self::prepareDoc((string)$doc);
 
-        $finder    = new DomXPath($dom);
-        $tables      = $finder->query("//table[contains(@class, 'day')]");
+        $finder = new DomXPath($dom);
+        $tables = $finder->query("//table[contains(@class, 'day')]");
 
         $results = [];
 
@@ -37,30 +24,30 @@ class ResultsExtractor {
 
             foreach ($rows as $r => $row)
             {
-                if($r <= 0)
+                if ($r <= 0)
                 {
                     continue;
                 }
                 $tds = $finder->query(".//td", $row);
                 foreach ($tds as $c => $td)
                 {
-                    if(!isset($tdMap[$c]))
+                    if (!isset($tdMap[$c]))
                     {
                         continue;
                     }
                     $val = trim($td->textContent, " \r\n.");
-                    if($tdMap[$c] == 'marks')
+                    if ($tdMap[$c] == 'marks')
                     {
-                        $val = [];
+                        $val     = [];
                         $markDiv = $finder->query(".//div", $td);
-                        if($markDiv->length > 0)
+                        if ($markDiv->length > 0)
                         {
                             foreach ($markDiv->item(0)->childNodes as $mark)
                             {
-                                if(!empty($mark->textContent))
+                                if (!empty($mark->textContent))
                                 {
                                     $m = trim($mark->textContent, " \r\n");
-                                    if(!empty($m))
+                                    if (!empty($m))
                                     {
                                         $val[] = $m;
                                     }
@@ -68,34 +55,113 @@ class ResultsExtractor {
                             }
                         }
                     }
-                    $results[$day][$r-1][$tdMap[$c]] = $val;
+                    $results[$day][$r - 1][$tdMap[$c]] = $val;
                 }
             }
         }
+
         return $results;
     }
 
-    // Not implemented really
-    public static function  FromRegister(string $doc)
+    /**
+     * @param string $doc
+     *
+     * @return domDocument
+     */
+    private static function prepareDoc($doc)
     {
-        $dom = self::prepareDoc($doc);
+        $dom = new domDocument('1.0','utf-8');
 
-        $finder    = new DomXPath($dom);
-        $rows      = $finder->query("//table[contains(@class, 'result')]/tr");
+        $doc = preg_replace('/<meta.*charset.*>/i', '', $doc);
+
+        $doc =
+            str_ireplace('<head>',
+                         '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" />', $doc);
+
+        $dom->loadHTML($doc);
+        $dom->preserveWhiteSpace = false;
+
+        return $dom;
+    }
+
+    public static function FromMarkbook2014($doc)
+    {
+        $dom = self::prepareDoc((string)$doc);
+
+        $finder = new DomXPath($dom);
+        $table  = $finder->query("//table[contains(@class, 'data')]")->item(0);
+
+        if(!$table)
+        {
+            return null;
+        }
+
+        $results = [];
+
+        $tdMap = [
+            0 => 'num',
+            1 => 'discipline',
+            2 => 'hometask',
+            3 => 'marks',
+            4 => 'num',
+            5 => 'discipline',
+            6 => 'hometask',
+            7 => 'marks',
+        ];
+
+        $rows = $finder->query(".//tr", $table);
+
+        $currentDate1 = "";
+        $currentWeekday1 = "";
+        $currentDate2 = "";
+        $currentWeekday2 = "";
 
         foreach ($rows as $r => $row)
         {
-            if ($r <= 2)
+            $rowDates = $finder->query(".//th[contains(@class, 'dnevnik_date')]", $row);
+            if($rowDates->length > 0)
             {
+                $rowWeekDays = $finder->query(".//th[contains(@class, 'dnevnik_day')]", $row);
+                $currentDate1 = $rowDates->item(0)->textContent;
+                $currentWeekday1 = $rowWeekDays->item(0)->textContent;
+                $currentDate2 = $rowDates->item(1)->textContent;
+                $currentWeekday2 = $rowWeekDays->item(1)->textContent;
                 continue;
             }
-            $cols = $row->childNodes;
-            foreach ($cols as $k => $td)
+
+
+            $tds = $finder->query(".//td", $row);
+
+            foreach ($tds as $c => $td)
             {
-                echo $td->textContent;
+                if (!isset($tdMap[$c]))
+                {
+                    continue;
+                }
+                $val = @trim($td->firstChild->textContent, " \r\n.");
+                if ($tdMap[$c] == 'marks')
+                {
+                    $val     = array_filter(array_map('trim', explode('/', $val)));
+                    $markDiv = $finder->query(".//div", $td);
+                    if ($markDiv->length > 0)
+                    {
+                        foreach ($markDiv->item(0)->childNodes as $mark)
+                        {
+                            if (!empty($mark->textContent))
+                            {
+                                $m = trim($mark->textContent, " \r\n");
+                                if (!empty($m))
+                                {
+                                    $val[] = $m;
+                                }
+                            }
+                        }
+                    }
+                }
+                $results[$c > 3 ? $currentDate2 : $currentDate1][$r - 1][$tdMap[$c]] = $val;
             }
         }
 
+        return $results;
     }
-
-} 
+}

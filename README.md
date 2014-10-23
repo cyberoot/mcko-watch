@@ -7,5 +7,5 @@ Basic notification script. See config.php for options, setup cron job for regula
 
 e.g.:
 ```bash
-00      18      *       *       1-5     /usr/bin/php ~/scripts/mcko/feed.php
+00      18      *       *       1-5     /usr/bin/php ~/scripts/mrko/feed.php
 ```

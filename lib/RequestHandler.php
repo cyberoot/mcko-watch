@@ -15,6 +15,8 @@ class RequestHandler
 
     private $lastUrl = '';
 
+    private $lastHttpCode = null;
+
     /**
      * @var array
      */
@@ -61,7 +63,7 @@ class RequestHandler
                           [
                               CURLOPT_HTTPHEADER => self::getHeaders(),
                               CURLOPT_FAILONERROR => true,
-                              CURLOPT_FOLLOWLOCATION => true,
+                              CURLOPT_FOLLOWLOCATION => false,
                               CURLOPT_RETURNTRANSFER => true,
                               CURLOPT_TIMEOUT => 20,
                               CURLOPT_USERAGENT => self::getAgent(),
@@ -69,6 +71,8 @@ class RequestHandler
                               CURLOPT_COOKIEFILE => $this->cookies,
                               CURLOPT_SSL_VERIFYPEER => false,
                               CURLOPT_SSL_VERIFYHOST => false,
+                              CURLOPT_CONNECTTIMEOUT => 0,
+                              CURLOPT_TIMEOUT => 600,
                           ]
         );
         if(!empty($this->lastUrl))
@@ -77,17 +81,17 @@ class RequestHandler
         }
     }
 
-    public function Get($url, $params = [])
+    public function Get($url, $params = [], $referer = null)
     {
-        return $this->request($url, $params, 'GET');
+        return $this->request($url, $params, 'GET', $referer);
     }
 
-    public function Post($url, $params)
+    public function Post($url, $params, $referer = null)
     {
-        return $this->request($url, $params, 'POST');
+        return $this->request($url, $params, 'POST', $referer);
     }
 
-    private function request($url, $params, $method)
+    private function request($url, $params, $method, $referer = null)
     {
         $this->initRequest();
         $paramsQuery = http_build_query($params);
@@ -109,12 +113,19 @@ class RequestHandler
                 break;
         }
 
+        if(!empty($referer))
+        {
+            curl_setopt($this->curl, CURLOPT_REFERER, $referer);
+        }
+
         $response = curl_exec($this->curl);
 
         if (curl_errno($this->curl))
         {
             $this->errors[] =  curl_error($this->curl);
         }
+
+        $this->lastHttpCode = curl_getinfo($this->curl, CURLINFO_HTTP_CODE);
 
         $this->finishRequest();
 
@@ -124,5 +135,10 @@ class RequestHandler
     public function LastError()
     {
         return array_pop($this->errors);
+    }
+
+    public function LastHttpCode()
+    {
+        return $this->lastHttpCode;
     }
 }
